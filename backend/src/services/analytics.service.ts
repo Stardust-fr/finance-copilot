@@ -89,7 +89,9 @@ export async function getAnalytics(
     const amount = toNum(tx.amount);
     const isIncome = tx.type === 'INCOME';
     const month = monthKey(new Date(tx.date));
-    const category = (tx.category ?? tx.aiCategory ?? 'Other').trim();
+    // Normalize category to lowercase for grouping, handle casing differences
+    const categoryRaw = (tx.category ?? tx.aiCategory ?? 'Other').trim();
+    const category = categoryRaw.toLowerCase();
 
     if (isIncome) {
       totalIncome += amount;

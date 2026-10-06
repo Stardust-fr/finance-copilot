@@ -1,17 +1,28 @@
 import multer, { FileFilterCallback } from 'multer';
 import { Request } from 'express';
 
-// Store file in memory as a Buffer — no disk writes needed
 const storage = multer.memoryStorage();
 
-function fileFilter(_req: Request, file: Express.Multer.File, cb: FileFilterCallback) {
-  const allowed = ['text/csv', 'application/vnd.ms-excel', 'text/plain', 'application/octet-stream'];
-  const ext = file.originalname.toLowerCase().endsWith('.csv');
+// MIME types for CSV and Excel formats
+const ALLOWED_MIME_TYPES = [
+  'text/csv',
+  'text/plain',
+  'application/octet-stream',
+  'application/vnd.ms-excel',                                        // .xls
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', // .xlsx
+];
 
-  if (allowed.includes(file.mimetype) || ext) {
+const ALLOWED_EXTENSIONS = ['.csv', '.xls', '.xlsx'];
+
+function fileFilter(_req: Request, file: Express.Multer.File, cb: FileFilterCallback) {
+  const ext = '.' + file.originalname.toLowerCase().split('.').pop();
+  const mimeOk = ALLOWED_MIME_TYPES.includes(file.mimetype);
+  const extOk = ALLOWED_EXTENSIONS.includes(ext);
+
+  if (mimeOk || extOk) {
     cb(null, true);
   } else {
-    cb(new Error('Only CSV files are allowed'));
+    cb(new Error('Only CSV and Excel (.xls, .xlsx) files are supported'));
   }
 }
 

@@ -35,7 +35,8 @@ Respond with valid JSON only, no markdown, no explanation:
 {"category": "CATEGORY_NAME", "confidence": 0.95}`;
 
     try {
-      const model = this.genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+      // Use gemini-3.8-flash (latest model as of 2025)
+      const model = this.genAI.getGenerativeModel({ model: 'gemini-3.8-flash' });
       const result = await model.generateContent(prompt);
       const text = result.response.text().trim();
 
@@ -78,7 +79,7 @@ ${context}`;
 
     try {
       const model = this.genAI.getGenerativeModel({
-        model: 'gemini-1.5-flash',
+        model: 'gemini-3.8-flash',
         systemInstruction: systemPrompt,
       });
 

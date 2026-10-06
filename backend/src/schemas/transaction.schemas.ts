@@ -43,5 +43,27 @@ export const updateCategorySchema = z.object({
   }),
 });
 
+export const bulkDeleteSchema = z.object({
+  body: z.object({
+    transactionIds: z.array(z.string()).min(1, 'At least one transaction ID is required').optional(),
+    deleteAll: z.boolean().optional(),
+  }).refine(
+    (data) => data.transactionIds || data.deleteAll,
+    { message: 'Either transactionIds or deleteAll must be provided' }
+  ),
+});
+
+export const bulkRecategorizeSchema = z.object({
+  body: z.object({
+    transactionIds: z.array(z.string()).min(1, 'At least one transaction ID is required').optional(),
+    recategorizeAll: z.boolean().optional(),
+  }).refine(
+    (data) => data.transactionIds || data.recategorizeAll,
+    { message: 'Either transactionIds or recategorizeAll must be provided' }
+  ),
+});
+
 export type ListTransactionsQuery = z.infer<typeof listTransactionsSchema>['query'];
 export type UpdateCategoryBody = z.infer<typeof updateCategorySchema>['body'];
+export type BulkDeleteBody = z.infer<typeof bulkDeleteSchema>['body'];
+export type BulkRecategorizeBody = z.infer<typeof bulkRecategorizeSchema>['body'];

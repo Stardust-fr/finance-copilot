@@ -148,3 +148,125 @@ export async function deleteTransaction(userId: string, transactionId: string): 
 
   await db.transaction.delete({ where: { id: transactionId } });
 }
+
+// ─── Bulk Delete ──────────────────────────────────────────────────────────────
+export async function bulkDeleteTransactions(
+  userId: string,
+  transactionIds?: string[],
+  deleteAll = false,
+): Promise<{ deleted: number }> {
+  if (deleteAll) {
+    // Delete all transactions for the user
+    const result = await db.transaction.deleteMany({
+      where: {
+        account: { userId },
+      },
+    });
+    return { deleted: result.count };
+  }
+
+  if (!transactionIds || transactionIds.length === 0) {
+    throw Object.assign(new Error('No transaction IDs provided'), { statusCode: 400 });
+  }
+
+  // Verify all transactions belong to the user
+  const transactions = await db.transaction.findMany({
+    where: {
+      id: { in: transactionIds },
+      account: { userId },
+    },
+    select: { id: true },
+  });
+
+  if (transactions.length !== transactionIds.length) {
+    throw Object.assign(
+      new Error('Some transactions not found or you do not have permission'),
+      { statusCode: 403 },
+    );
+  }
+
+  const result = await db.transaction.deleteMany({
+    where: {
+      id: { in: transactionIds },
+      account: { userId },
+    },
+  });
+
+  return { deleted: result.count };
+}
+
+// ─── Bulk Recategorize ────────────────────────────────────────────────────────
+export async function bulkRecategorizeTransactions(
+  userId: string,
+  aiService: { categorizeTransaction: (tx: { merchant: string; amount: number; description?: string }) => Promise<{ category: string; confidence: number }> },
+  transactionIds?: string[],
+  recategorizeAll = false,
+): Promise<{ recategorized: number; skipped: number; failed: number }> {
+  // Fetch transactions to recategorize
+  const where: Prisma.TransactionWhereInput = recategorizeAll
+    ? { account: { userId } }
+    : {
+        id: { in: transactionIds },
+        account: { userId },
+      };
+
+  const transactions = await db.transaction.findMany({
+    where,
+    select: {
+      id: true,
+      merchant: true,
+      amount: true,
+      description: true,
+    },
+  });
+
+  if (!recategorizeAll && transactions.length !== transactionIds?.length) {
+    throw Object.assign(
+      new Error('Some transactions not found or you do not have permission'),
+      { statusCode: 403 },
+    );
+  }
+
+  // Recategorize each transaction
+  let recategorized = 0;
+  let skipped = 0;
+  let failed = 0;
+
+  for (const tx of transactions) {
+    try {
+      // First, get AI categorization
+      const result = await aiService.categorizeTransaction({
+        merchant: tx.merchant,
+        amount: parseFloat(tx.amount.toString()),
+        description: tx.description ?? undefined,
+      });
+
+      // Use updateMany which doesn't throw P2025 if record doesn't exist
+      const updateResult = await db.transaction.updateMany({
+        where: {
+          id: tx.id,
+          account: { userId }, // Extra safety check
+        },
+        data: {
+          aiCategory: result.category as $Enums.AiCategory,
+          confidence: result.confidence,
+          // Reset manual category so AI category shows
+          category: null,
+        },
+      });
+
+      if (updateResult.count > 0) {
+        recategorized++;
+      } else {
+        skipped++;
+        console.warn(`[recategorize] Transaction ${tx.id} no longer exists or doesn't belong to user, skipped`);
+      }
+    } catch (err) {
+      failed++;
+      console.error(`[recategorize] Failed for transaction ${tx.id}:`, err);
+      // Continue with other transactions
+    }
+  }
+
+  return { recategorized, skipped, failed };
+}
